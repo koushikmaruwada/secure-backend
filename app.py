@@ -6,9 +6,14 @@ from crypto import encrypt_data, decrypt_data
 from ml_model import analyze_query, privacy_score
 from blockchain import Blockchain
 
+# ------------------ APP SETUP ------------------
 app = Flask(__name__)
-CORS(app)
 
+# ✅ CORS FIX (important for Vercel → Render communication)
+CORS(app, resources={r"/*": {"origins": "*"}})
+app.config['CORS_HEADERS'] = 'Content-Type'
+
+# ------------------ INIT ------------------
 blockchain = Blockchain()
 
 # Dummy database
@@ -22,13 +27,18 @@ USERS = {
     "admin": "1234"
 }
 
+# ------------------ HOME ------------------
+@app.route("/", methods=["GET"])
+def home():
+    return "🚀 Secure AI Backend Running"
+
 # ------------------ QUERY ------------------
 @app.route("/query", methods=["POST"])
 def query():
     data = request.json
     query_text = data.get("query")
 
-    # AI analysis (optional use)
+    # AI analysis
     intent = analyze_query(query_text)
 
     result = DATABASE.get(query_text, "No Data Found")
@@ -39,10 +49,12 @@ def query():
         "result": result
     })
 
+    score = privacy_score(query_text)
+
     return jsonify({
         "data": result,
-        "privacy_score": privacy_score(query_text),
-        "risk": "LOW" if privacy_score(query_text) > 80 else "MEDIUM"
+        "privacy_score": score,
+        "risk": "LOW" if score > 80 else "MEDIUM"
     })
 
 # ------------------ LOGIN ------------------
@@ -57,7 +69,7 @@ def login():
 
     return jsonify({"status": "fail"}), 401
 
-# ------------------ LOGS ------------------
+# ------------------ BLOCKCHAIN LOGS ------------------
 @app.route("/logs", methods=["GET"])
 def get_logs():
     chain_data = []
@@ -69,12 +81,7 @@ def get_logs():
         })
     return jsonify(chain_data)
 
-# ------------------ ROOT (optional but useful) ------------------
-@app.route("/", methods=["GET"])
-def home():
-    return "🚀 Secure AI Backend Running"
-
-# ------------------ RUN (FIXED FOR RENDER) ------------------
+# ------------------ RUN (RENDER FIX) ------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
