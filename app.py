@@ -18,8 +18,8 @@ blockchain = Blockchain()
 
 # Dummy database
 DATABASE = {
-    "user1": "Medical Data A",
-    "user2": "Financial Data B"
+    "user1": encrypt_data("Medical Data A"),
+    "user2": encrypt_data("Financial Data B")
 }
 
 # USERS
@@ -38,21 +38,25 @@ def query():
     data = request.json
     query_text = data.get("query")
 
-    # AI analysis
-    intent = analyze_query(query_text)
+    # 🔐 Check if data exists (NO full decryption)
+    if query_text in DATABASE:
+        encrypted_data = DATABASE[query_text]
 
-    result = DATABASE.get(query_text, "No Data Found")
+        # 🔓 Decrypt ONLY required data
+        decrypted_result = decrypt_data(encrypted_data)
+    else:
+        decrypted_result = "No Data Found"
 
     # Blockchain logging
     blockchain.add_block({
         "query": query_text,
-        "result": result
+        "result": "DECRYPTED" if query_text in DATABASE else "NOT FOUND"
     })
 
     score = privacy_score(query_text)
 
     return jsonify({
-        "data": result,
+        "data": decrypted_result,
         "privacy_score": score,
         "risk": "LOW" if score > 80 else "MEDIUM"
     })
@@ -85,3 +89,4 @@ def get_logs():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
