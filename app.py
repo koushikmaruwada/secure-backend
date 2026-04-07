@@ -32,16 +32,23 @@ from PyPDF2 import PdfReader
 import pandas as pd
 
 # 🔥 Helper: Convert text → key:value dictionary
-def parse_text_to_dict(text):
-    record = {}
-    lines = text.split("\n")
+def parse_multiple_records(text):
+    records = []
+    blocks = text.split("---")
 
-    for line in lines:
-        if ":" in line:
-            key, value = line.split(":", 1)
-            record[key.strip().lower()] = value.strip()
+    for block in blocks:
+        record = {}
+        lines = block.strip().split("\n")
 
-    return record
+        for line in lines:
+            if ":" in line:
+                key, value = line.split(":", 1)
+                record[key.strip().lower()] = value.strip()
+
+        if record:
+            records.append(record)
+
+    return records
 
 
 # ------------------ FILE UPLOAD ------------------
@@ -76,7 +83,8 @@ def upload_file():
         elif filename.endswith(".txt"):
             content = file.read().decode("utf-8")
 
-            record = parse_text_to_dict(content)
+            records = parse_multiple_records(content)
+            data_list.extend(records)
             if record:
                 data_list.append(record)
 
@@ -86,7 +94,8 @@ def upload_file():
 
             text = "\n".join([p.text for p in doc.paragraphs])
 
-            record = parse_text_to_dict(text)
+            records = parse_multiple_records(content)
+            data_list.extend(records)
             if record:
                 data_list.append(record)
 
@@ -100,7 +109,8 @@ def upload_file():
                 if extracted:
                     full_text += extracted + "\n"
 
-            record = parse_text_to_dict(full_text)
+            records = parse_multiple_records(full_text)
+            data_list.extend(records)
             if record:
                 data_list.append(record)
 
