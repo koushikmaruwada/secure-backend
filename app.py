@@ -60,30 +60,34 @@ def upload_file():
 @app.route("/query", methods=["POST"])
 def query():
     data = request.json
-    query_text = data.get("query")
+    query_text = data.get("query").lower()
 
-    if query_text in DATABASE:
-        encrypted_data = DATABASE[query_text]
-        decrypted_result = decrypt_data(encrypted_data)
+    results = []
 
+    # 🔍 Search inside encrypted data
+    for key, encrypted_data in DATABASE.items():
+        decrypted_data = decrypt_data(encrypted_data)
+
+        # Match query with content
+        if query_text in decrypted_data.lower():
+            results.append(decrypted_data)
+
+    if results:
         add_block({
             "query": query_text,
-            "result": decrypted_result
+            "result": "MATCH FOUND"
         })
     else:
-        decrypted_result = "No Data Found"
-
+        results = ["No Data Found"]
         add_block({
             "query": query_text,
             "result": "NOT FOUND"
         })
 
-    score = privacy_score(query_text)
-
     return jsonify({
-        "data": decrypted_result,
-        "privacy_score": score,
-        "risk": "LOW" if score > 80 else "MEDIUM"
+        "data": results,
+        "privacy_score": 90,
+        "risk": "LOW"
     })
 
 # ------------------ LOGIN ------------------
