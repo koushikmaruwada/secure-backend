@@ -120,6 +120,8 @@ def upload_file():
 
 
 # ------------------ QUERY ------------------
+import ast
+
 @app.route("/query", methods=["POST"])
 def query():
     data = request.json
@@ -132,16 +134,20 @@ def query():
         decrypted_data = decrypt_data(encrypted_data)
         record = ast.literal_eval(decrypted_data)
 
+        # 🔍 Check if any word matches record
         if any(word in str(value).lower() for word in words for value in record.values()):
 
-            if "attendance" in words:
-                results.append(record.get("attendance", "Not found"))
+            matched_data = {}
 
-            elif "supply" in words:
-                results.append(record.get("supply", "Not found"))
+            # 🔥 dynamic field extraction
+            for field in record.keys():
+                for word in words:
+                    if word in field:
+                        matched_data[field] = record[field]
 
-            elif "branch" in words:
-                results.append(record.get("branch", "Not found"))
+            # if specific fields found
+            if matched_data:
+                results.append(matched_data)
 
             else:
                 results.append(record)
