@@ -116,7 +116,7 @@ def upload_file():
         })
 
     except Exception as e:
-        print("UPLOAD ERROR:", str(e))
+        print("UPLOAD ERROR:", str(e))   # 🔥 already there
         return jsonify({"error": str(e)}), 500
 
 
