@@ -52,71 +52,26 @@ def parse_multiple_records(text):
 @app.route("/upload", methods=["POST"])
 def upload_file():
     try:
-        DATABASE.clear()  # 🔥 clear old data
-
-        if "file" not in request.files:
-            return jsonify({"error": "No file uploaded"}), 400
+        DATABASE.clear()
 
         file = request.files["file"]
-        filename = file.filename.lower()
+        content = file.read().decode("utf-8")
 
-        data_list = []
+        print("FILE CONTENT:", content[:200])
 
-        # 📊 EXCEL / CSV
-        if filename.endswith(".xlsx") or filename.endswith(".csv"):
-            df = pd.read_excel(file) if filename.endswith(".xlsx") else pd.read_csv(file)
-            df = df.fillna("")
+        # simple parsing (no split)
+        record = {}
+        for line in content.split("\n"):
+            if ":" in line:
+                key, value = line.split(":", 1)
+                record[key.strip().lower()] = value.strip()
 
-            for _, row in df.iterrows():
-                record = {}
-                for col in df.columns:
-                    record[col.lower()] = str(row[col]).strip()
+        DATABASE["row_0"] = encrypt_data(str(record))
 
-                data_list.append(record)
-
-        # 📄 TXT
-        elif filename.endswith(".txt"):
-            content = file.read().decode("utf-8")
-            records = parse_multiple_records(content)
-            data_list.extend(records)
-
-        # 📄 WORD (.docx)
-        elif filename.endswith(".docx"):
-            doc = Document(file)
-            text = "\n".join([p.text for p in doc.paragraphs])
-
-            records = parse_multiple_records(text)
-            data_list.extend(records)
-
-        # 📄 PDF
-        elif filename.endswith(".pdf"):
-            reader = PdfReader(file)
-
-            full_text = ""
-            for page in reader.pages:
-                extracted = page.extract_text()
-                if extracted:
-                    full_text += extracted + "\n"
-
-            records = parse_multiple_records(full_text)
-            data_list.extend(records)
-
-        else:
-            return jsonify({"error": "Unsupported file type"}), 400
-
-        # 🔐 Encrypt & store
-        for i, record in enumerate(data_list):
-            DATABASE[f"row_{i}"] = encrypt_data(str(record))
-
-        print("DATABASE SIZE:", len(DATABASE))  # debug
-
-        return jsonify({
-            "status": "Upload success",
-            "records_added": len(data_list)
-        })
+        return jsonify({"status": "Upload success"})
 
     except Exception as e:
-        print("UPLOAD ERROR:", str(e))   # 🔥 already there
+        print("UPLOAD ERROR:", str(e))
         return jsonify({"error": str(e)}), 500
 
 
