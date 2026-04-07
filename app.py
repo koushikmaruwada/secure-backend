@@ -28,55 +28,59 @@ def home():
 @app.route("/upload", methods=["POST"])
 def upload_file():
     try:
-        if "file" not in request.files:
-            return jsonify({"error": "No file uploaded"}), 400
-
         file = request.files["file"]
-
-        if file.filename == "":
-            return jsonify({"error": "Empty filename"}), 400
-
         import pandas as pd
 
-        df = pd.read_excel(file)  # works for xlsx
-
+        df = pd.read_excel(file)
         df = df.fillna("")
 
+        # 🔥 store column names
+        columns = list(df.columns)
+
         for index, row in df.iterrows():
-            combined_data = " | ".join([str(v).strip() for v in row.values])
-            DATABASE[f"row_{index}"] = encrypt_data(combined_data)
+            record = {}
+
+            for col in columns:
+                record[col.lower()] = str(row[col]).strip()
+
+            # store structured + encrypted
+            DATABASE[f"row_{index}"] = encrypt_data(str(record))
 
         return jsonify({"status": "Upload success"})
 
     except Exception as e:
-        print("UPLOAD ERROR:", str(e))  # 🔥 see in logs
         return jsonify({"error": str(e)}), 500
 
 # ------------------ QUERY ------------------
+import ast   # 🔥 add this at TOP of file (once)
+
 @app.route("/query", methods=["POST"])
 def query():
     data = request.json
-    query_text = data.get("query").lower().strip()
+    query_text = data.get("query").lower()
 
     results = []
 
     for key, encrypted_data in DATABASE.items():
         decrypted_data = decrypt_data(encrypted_data)
 
-        if query_text in decrypted_data.lower():
-            results.append(decrypted_data)
+        # 🔥 ADD HERE
+        record = ast.literal_eval(decrypted_data)
 
-    if results:
-        add_block({
-            "query": query_text,
-            "result": "MATCH FOUND"
-        })
-    else:
+        # 🔍 check if name matches
+        if any(query_text.split()[0] in str(v).lower() for v in record.values()):
+
+            if "attendance" in query_text:
+                results.append(record.get("attendance", "Not found"))
+
+            elif "supply" in query_text:
+                results.append(record.get("supply", "Not found"))
+
+            else:
+                results.append(record)
+
+    if not results:
         results = ["No Data Found"]
-        add_block({
-            "query": query_text,
-            "result": "NOT FOUND"
-        })
 
     return jsonify({
         "data": results,
