@@ -45,9 +45,11 @@ def parse_text_to_dict(text):
 
 
 # ------------------ FILE UPLOAD ------------------
+DATABASE.clear()
 @app.route("/upload", methods=["POST"])
 def upload_file():
     try:
+        DATABASE.clear()
         if "file" not in request.files:
             return jsonify({"error": "No file uploaded"}), 400
 
