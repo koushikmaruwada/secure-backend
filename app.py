@@ -27,24 +27,30 @@ def home():
 # ------------------ FILE UPLOAD ------------------
 @app.route("/upload", methods=["POST"])
 def upload_file():
-    file = request.files["file"]
+    try:
+        if "file" not in request.files:
+            return jsonify({"error": "No file uploaded"}), 400
 
-    data_dict = {}
+        file = request.files["file"]
 
-    # Excel / CSV
-    if file.filename.endswith(".xlsx") or file.filename.endswith(".csv"):
-        df = pd.read_excel(file) if file.filename.endswith(".xlsx") else pd.read_csv(file)
+        if file.filename == "":
+            return jsonify({"error": "Empty filename"}), 400
 
-    df = df.fillna("")
+        import pandas as pd
 
-    for index, row in df.iterrows():
-        # 🔥 combine ALL columns
-        combined_data = " | ".join([str(v).strip() for v in row.values])
+        df = pd.read_excel(file)  # works for xlsx
 
-        # use index as key (unique)
-        key = f"row_{index}"
+        df = df.fillna("")
 
-        DATABASE[key] = encrypt_data(combined_data)
+        for index, row in df.iterrows():
+            combined_data = " | ".join([str(v).strip() for v in row.values])
+            DATABASE[f"row_{index}"] = encrypt_data(combined_data)
+
+        return jsonify({"status": "Upload success"})
+
+    except Exception as e:
+        print("UPLOAD ERROR:", str(e))  # 🔥 see in logs
+        return jsonify({"error": str(e)}), 500
 
 # ------------------ QUERY ------------------
 @app.route("/query", methods=["POST"])
