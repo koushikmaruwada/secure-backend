@@ -1,28 +1,24 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
+
 from db import add_block, get_blocks
 from crypto import encrypt_data, decrypt_data
 from ml_model import analyze_query, privacy_score
-from blockchain import Blockchain
 
 # ------------------ APP SETUP ------------------
 app = Flask(__name__)
 
-# ✅ CORS FIX (important for Vercel → Render communication)
 CORS(app, resources={r"/*": {"origins": "*"}})
 app.config['CORS_HEADERS'] = 'Content-Type'
 
-# ------------------ INIT ------------------
-blockchain = Blockchain()
-
-# Dummy database
+# ------------------ DATABASE ------------------
 DATABASE = {
     "patient_101": encrypt_data("Name: John, Disease: Diabetes"),
     "account_202": encrypt_data("Balance: ₹50,000")
 }
 
-# USERS
+# ------------------ USERS ------------------
 USERS = {
     "admin": "1234"
 }
@@ -44,7 +40,7 @@ def query():
 
         add_block({
             "query": query_text,
-            "result": "DECRYPTED"
+            "result": decrypted_result
         })
     else:
         decrypted_result = "No Data Found"
@@ -74,20 +70,13 @@ def login():
 
     return jsonify({"status": "fail"}), 401
 
-# ------------------ BLOCKCHAIN LOGS ------------------
+# ------------------ LOGS ------------------
 @app.route("/logs", methods=["GET"])
-def get_logs():
-    chain_data = []
-    for block in blockchain.chain:
-        chain_data.append({
-            "index": block.index,
-            "data": block.data,
-            "hash": block.hash
-        })
-    return jsonify(chain_data)
+def logs():
+    blocks = get_blocks()
+    return jsonify(blocks)
 
-# ------------------ RUN (RENDER FIX) ------------------
+# ------------------ RUN ------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
