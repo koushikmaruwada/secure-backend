@@ -27,6 +27,24 @@ def home():
     return "🚀 Secure AI Backend Running"
 
 # ------------------ FILE UPLOAD ------------------
+from docx import Document
+from PyPDF2 import PdfReader
+import pandas as pd
+
+# 🔥 Helper: Convert text → key:value dictionary
+def parse_text_to_dict(text):
+    record = {}
+    lines = text.split("\n")
+
+    for line in lines:
+        if ":" in line:
+            key, value = line.split(":", 1)
+            record[key.strip().lower()] = value.strip()
+
+    return record
+
+
+# ------------------ FILE UPLOAD ------------------
 @app.route("/upload", methods=["POST"])
 def upload_file():
     try:
@@ -49,43 +67,52 @@ def upload_file():
                 record = {}
                 for col in columns:
                     record[col.lower()] = str(row[col]).strip()
+
                 data_list.append(record)
 
         # 📄 TXT
         elif filename.endswith(".txt"):
             content = file.read().decode("utf-8")
-            lines = content.split("\n")
 
-            for line in lines:
-                parts = [p.strip() for p in line.split(",") if p.strip()]
-                if parts:
-                    record = {f"field_{i}": parts[i] for i in range(len(parts))}
-                    data_list.append(record)
+            record = parse_text_to_dict(content)
+            if record:
+                data_list.append(record)
 
         # 📄 WORD (.docx)
         elif filename.endswith(".docx"):
             doc = Document(file)
-            for para in doc.paragraphs:
-                text = para.text.strip()
-                if text:
-                    data_list.append({"content": text})
+
+            text = "\n".join([p.text for p in doc.paragraphs])
+
+            record = parse_text_to_dict(text)
+            if record:
+                data_list.append(record)
 
         # 📄 PDF
         elif filename.endswith(".pdf"):
             reader = PdfReader(file)
+
+            full_text = ""
             for page in reader.pages:
-                text = page.extract_text()
-                if text:
-                    data_list.append({"content": text.strip()})
+                extracted = page.extract_text()
+                if extracted:
+                    full_text += extracted + "\n"
+
+            record = parse_text_to_dict(full_text)
+            if record:
+                data_list.append(record)
 
         else:
             return jsonify({"error": "Unsupported file type"}), 400
 
-        # 🔐 Encrypt and store
+        # 🔐 Encrypt & store
         for i, record in enumerate(data_list):
             DATABASE[f"row_{len(DATABASE)+i}"] = encrypt_data(str(record))
 
-        return jsonify({"status": "Upload success", "records": len(data_list)})
+        return jsonify({
+            "status": "Upload success",
+            "records_added": len(data_list)
+        })
 
     except Exception as e:
         print("UPLOAD ERROR:", str(e))
