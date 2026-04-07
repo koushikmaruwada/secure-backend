@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
-
+from db import add_block, get_blocks
 from crypto import encrypt_data, decrypt_data
 from ml_model import analyze_query, privacy_score
 from blockchain import Blockchain
@@ -38,20 +38,25 @@ def query():
     data = request.json
     query_text = data.get("query")
 
-    # 🔐 Check if data exists (NO full decryption)
+    # 🔐 Check if data exists
     if query_text in DATABASE:
         encrypted_data = DATABASE[query_text]
-
-        # 🔓 Decrypt ONLY required data
         decrypted_result = decrypt_data(encrypted_data)
+
+        # 🔥 ADD THIS HERE (after decryption)
+        add_block({
+            "query": query_text,
+            "result": "DECRYPTED"
+        })
+
     else:
         decrypted_result = "No Data Found"
 
-    # Blockchain logging
-    blockchain.add_block({
-        "query": query_text,
-        "result": "DECRYPTED" if query_text in DATABASE else "NOT FOUND"
-    })
+        # 🔥 ALSO LOG NOT FOUND (optional)
+        add_block({
+            "query": query_text,
+            "result": "NOT FOUND"
+        })
 
     score = privacy_score(query_text)
 
@@ -59,6 +64,38 @@ def query():
         "data": decrypted_result,
         "privacy_score": score,
         "risk": "LOW" if score > 80 else "MEDIUM"
+        @app.route("/query", methods=["POST"])
+def query():
+    data = request.json
+    query_text = data.get("query")
+
+    # 🔐 Check if data exists
+    if query_text in DATABASE:
+        encrypted_data = DATABASE[query_text]
+        decrypted_result = decrypt_data(encrypted_data)
+
+        # 🔥 ADD THIS HERE (after decryption)
+        add_block({
+            "query": query_text,
+            "result": "DECRYPTED"
+        })
+
+    else:
+        decrypted_result = "No Data Found"
+
+        # 🔥 ALSO LOG NOT FOUND (optional)
+        add_block({
+            "query": query_text,
+            "result": "NOT FOUND"
+        })
+
+    score = privacy_score(query_text)
+
+    return jsonify({
+        "data": decrypted_result,
+        "privacy_score": score,
+        "risk": "LOW" if score > 80 else "MEDIUM"
+    })
     })
 
 # ------------------ LOGIN ------------------
