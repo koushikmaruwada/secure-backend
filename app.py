@@ -2,6 +2,10 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
 import pandas as pd
+import ast
+
+from docx import Document
+from PyPDF2 import PdfReader
 
 from db import add_block, get_blocks
 from crypto import encrypt_data, decrypt_data
@@ -9,12 +13,10 @@ from ml_model import privacy_score
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
-app.config['CORS_HEADERS'] = 'Content-Type'
 
-# 🔐 Encrypted Database (in-memory)
+# 🔐 Encrypted Database
 DATABASE = {}
 
-# USERS
 USERS = {
     "admin": "1234"
 }
@@ -28,51 +30,83 @@ def home():
 @app.route("/upload", methods=["POST"])
 def upload_file():
     try:
+        if "file" not in request.files:
+            return jsonify({"error": "No file uploaded"}), 400
+
         file = request.files["file"]
-        import pandas as pd
+        filename = file.filename.lower()
 
-        df = pd.read_excel(file)
-        df = df.fillna("")
+        data_list = []
 
-        # 🔥 store column names
-        columns = list(df.columns)
+        # 📊 EXCEL / CSV
+        if filename.endswith(".xlsx") or filename.endswith(".csv"):
+            df = pd.read_excel(file) if filename.endswith(".xlsx") else pd.read_csv(file)
+            df = df.fillna("")
 
-        for index, row in df.iterrows():
-            record = {}
+            columns = list(df.columns)
 
-            for col in columns:
-                record[col.lower()] = str(row[col]).strip()
+            for _, row in df.iterrows():
+                record = {}
+                for col in columns:
+                    record[col.lower()] = str(row[col]).strip()
+                data_list.append(record)
 
-            # store structured + encrypted
-            DATABASE[f"row_{index}"] = encrypt_data(str(record))
+        # 📄 TXT
+        elif filename.endswith(".txt"):
+            content = file.read().decode("utf-8")
+            lines = content.split("\n")
 
-        return jsonify({"status": "Upload success"})
+            for line in lines:
+                parts = [p.strip() for p in line.split(",") if p.strip()]
+                if parts:
+                    record = {f"field_{i}": parts[i] for i in range(len(parts))}
+                    data_list.append(record)
+
+        # 📄 WORD (.docx)
+        elif filename.endswith(".docx"):
+            doc = Document(file)
+            for para in doc.paragraphs:
+                text = para.text.strip()
+                if text:
+                    data_list.append({"content": text})
+
+        # 📄 PDF
+        elif filename.endswith(".pdf"):
+            reader = PdfReader(file)
+            for page in reader.pages:
+                text = page.extract_text()
+                if text:
+                    data_list.append({"content": text.strip()})
+
+        else:
+            return jsonify({"error": "Unsupported file type"}), 400
+
+        # 🔐 Encrypt and store
+        for i, record in enumerate(data_list):
+            DATABASE[f"row_{len(DATABASE)+i}"] = encrypt_data(str(record))
+
+        return jsonify({"status": "Upload success", "records": len(data_list)})
 
     except Exception as e:
+        print("UPLOAD ERROR:", str(e))
         return jsonify({"error": str(e)}), 500
 
-# ------------------ QUERY ------------------
-import ast
 
+# ------------------ QUERY ------------------
 @app.route("/query", methods=["POST"])
 def query():
     data = request.json
     query_text = data.get("query").lower().strip()
 
     words = query_text.split()
-
     results = []
 
     for key, encrypted_data in DATABASE.items():
         decrypted_data = decrypt_data(encrypted_data)
-
-        # 🔥 convert string → dict
         record = ast.literal_eval(decrypted_data)
 
-        # 🔍 check if ANY word matches ANY field
         if any(word in str(value).lower() for word in words for value in record.values()):
 
-            # 🎯 extract specific field
             if "attendance" in words:
                 results.append(record.get("attendance", "Not found"))
 
@@ -94,22 +128,21 @@ def query():
         "risk": "LOW"
     })
 
+
 # ------------------ LOGIN ------------------
 @app.route("/login", methods=["POST"])
 def login():
     data = request.json
-    username = data.get("username")
-    password = data.get("password")
-
-    if USERS.get(username) == password:
+    if USERS.get(data.get("username")) == data.get("password"):
         return jsonify({"status": "success"})
-
     return jsonify({"status": "fail"}), 401
+
 
 # ------------------ LOGS ------------------
 @app.route("/logs", methods=["GET"])
 def logs():
     return jsonify(get_blocks())
+
 
 # ------------------ RUN ------------------
 if __name__ == "__main__":
