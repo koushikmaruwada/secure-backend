@@ -17,6 +17,7 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 # 🔐 Encrypted Database
 DATABASE = {}
 
+# USERS
 USERS = {
     "admin": "1234"
 }
@@ -26,12 +27,8 @@ USERS = {
 def home():
     return "🚀 Secure AI Backend Running"
 
-# ------------------ FILE UPLOAD ------------------
-from docx import Document
-from PyPDF2 import PdfReader
-import pandas as pd
 
-# 🔥 Helper: Convert text → key:value dictionary
+# ------------------ PARSER ------------------
 def parse_multiple_records(text):
     records = []
     blocks = text.split("---")
@@ -52,11 +49,11 @@ def parse_multiple_records(text):
 
 
 # ------------------ FILE UPLOAD ------------------
-DATABASE.clear()
 @app.route("/upload", methods=["POST"])
 def upload_file():
     try:
-        DATABASE.clear()
+        DATABASE.clear()  # 🔥 clear old data
+
         if "file" not in request.files:
             return jsonify({"error": "No file uploaded"}), 400
 
@@ -70,11 +67,9 @@ def upload_file():
             df = pd.read_excel(file) if filename.endswith(".xlsx") else pd.read_csv(file)
             df = df.fillna("")
 
-            columns = list(df.columns)
-
             for _, row in df.iterrows():
                 record = {}
-                for col in columns:
+                for col in df.columns:
                     record[col.lower()] = str(row[col]).strip()
 
                 data_list.append(record)
@@ -82,22 +77,16 @@ def upload_file():
         # 📄 TXT
         elif filename.endswith(".txt"):
             content = file.read().decode("utf-8")
-
             records = parse_multiple_records(content)
             data_list.extend(records)
-            if record:
-                data_list.append(record)
 
         # 📄 WORD (.docx)
         elif filename.endswith(".docx"):
             doc = Document(file)
-
             text = "\n".join([p.text for p in doc.paragraphs])
 
-            records = parse_multiple_records(content)
+            records = parse_multiple_records(text)
             data_list.extend(records)
-            if record:
-                data_list.append(record)
 
         # 📄 PDF
         elif filename.endswith(".pdf"):
@@ -111,15 +100,15 @@ def upload_file():
 
             records = parse_multiple_records(full_text)
             data_list.extend(records)
-            if record:
-                data_list.append(record)
 
         else:
             return jsonify({"error": "Unsupported file type"}), 400
 
         # 🔐 Encrypt & store
         for i, record in enumerate(data_list):
-            DATABASE[f"row_{len(DATABASE)+i}"] = encrypt_data(str(record))
+            DATABASE[f"row_{i}"] = encrypt_data(str(record))
+
+        print("DATABASE SIZE:", len(DATABASE))  # debug
 
         return jsonify({
             "status": "Upload success",
@@ -135,28 +124,30 @@ def upload_file():
 @app.route("/query", methods=["POST"])
 def query():
     data = request.json
-    query_text = data.get("query").lower().strip()
+    query_text = data.get("query", "").lower().strip()
 
     words = query_text.split()
     results = []
+
+    print("QUERY:", query_text)
+    print("DB SIZE:", len(DATABASE))
 
     for key, encrypted_data in DATABASE.items():
         decrypted_data = decrypt_data(encrypted_data)
         record = ast.literal_eval(decrypted_data)
 
-        # 🔍 Step 1: Check if main entity (name/person) matches
+        # 🔍 Check if record matches any keyword
         if not any(word in str(value).lower() for word in words for value in record.values()):
             continue
 
         matched_data = {}
 
-        # 🔥 Step 2: Only extract requested fields
+        # 🔥 Extract only requested fields
         for field, value in record.items():
             for word in words:
-                if word in field:
+                if word in field or field in query_text:
                     matched_data[field] = value
 
-        # 🔥 Step 3: Return only relevant fields
         if matched_data:
             results.append(matched_data)
 
@@ -174,8 +165,10 @@ def query():
 @app.route("/login", methods=["POST"])
 def login():
     data = request.json
+
     if USERS.get(data.get("username")) == data.get("password"):
         return jsonify({"status": "success"})
+
     return jsonify({"status": "fail"}), 401
 
 

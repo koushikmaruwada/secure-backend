@@ -6,3 +6,5 @@ openpyxl
 python-docx
 PyPDF2
 gunicorn
+python-docx
+PyPDF2
