@@ -52,29 +52,35 @@ def upload_file():
         return jsonify({"error": str(e)}), 500
 
 # ------------------ QUERY ------------------
-import ast   # 🔥 add this at TOP of file (once)
+import ast
 
 @app.route("/query", methods=["POST"])
 def query():
     data = request.json
-    query_text = data.get("query").lower()
+    query_text = data.get("query").lower().strip()
+
+    words = query_text.split()
 
     results = []
 
     for key, encrypted_data in DATABASE.items():
         decrypted_data = decrypt_data(encrypted_data)
 
-        # 🔥 ADD HERE
+        # 🔥 convert string → dict
         record = ast.literal_eval(decrypted_data)
 
-        # 🔍 check if name matches
-        if any(query_text.split()[0] in str(v).lower() for v in record.values()):
+        # 🔍 check if ANY word matches ANY field
+        if any(word in str(value).lower() for word in words for value in record.values()):
 
-            if "attendance" in query_text:
+            # 🎯 extract specific field
+            if "attendance" in words:
                 results.append(record.get("attendance", "Not found"))
 
-            elif "supply" in query_text:
+            elif "supply" in words:
                 results.append(record.get("supply", "Not found"))
+
+            elif "branch" in words:
+                results.append(record.get("branch", "Not found"))
 
             else:
                 results.append(record)
