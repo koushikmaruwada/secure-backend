@@ -1,24 +1,20 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
+import pandas as pd
 
 from db import add_block, get_blocks
 from crypto import encrypt_data, decrypt_data
-from ml_model import analyze_query, privacy_score
+from ml_model import privacy_score
 
-# ------------------ APP SETUP ------------------
 app = Flask(__name__)
-
 CORS(app, resources={r"/*": {"origins": "*"}})
 app.config['CORS_HEADERS'] = 'Content-Type'
 
-# ------------------ DATABASE ------------------
-DATABASE = {
-    "patient_101": encrypt_data("Name: John, Disease: Diabetes"),
-    "account_202": encrypt_data("Balance: ₹50,000")
-}
+# 🔐 Encrypted Database (in-memory)
+DATABASE = {}
 
-# ------------------ USERS ------------------
+# USERS
 USERS = {
     "admin": "1234"
 }
@@ -27,6 +23,38 @@ USERS = {
 @app.route("/", methods=["GET"])
 def home():
     return "🚀 Secure AI Backend Running"
+
+# ------------------ FILE UPLOAD ------------------
+@app.route("/upload", methods=["POST"])
+def upload_file():
+    file = request.files["file"]
+
+    data_dict = {}
+
+    # Excel / CSV
+    if file.filename.endswith(".xlsx") or file.filename.endswith(".csv"):
+        df = pd.read_excel(file) if file.filename.endswith(".xlsx") else pd.read_csv(file)
+
+        for index, row in df.iterrows():
+            key = str(row[0])
+            value = " | ".join([str(v) for v in row[1:]])
+
+            data_dict[key] = encrypt_data(value)
+
+    # TXT
+    elif file.filename.endswith(".txt"):
+        lines = file.read().decode("utf-8").split("\n")
+
+        for line in lines:
+            parts = line.split(",")
+            if len(parts) >= 2:
+                key = parts[0]
+                value = ",".join(parts[1:])
+                data_dict[key] = encrypt_data(value)
+
+    DATABASE.update(data_dict)
+
+    return jsonify({"status": "File uploaded & encrypted"})
 
 # ------------------ QUERY ------------------
 @app.route("/query", methods=["POST"])
@@ -73,8 +101,7 @@ def login():
 # ------------------ LOGS ------------------
 @app.route("/logs", methods=["GET"])
 def logs():
-    blocks = get_blocks()
-    return jsonify(blocks)
+    return jsonify(get_blocks())
 
 # ------------------ RUN ------------------
 if __name__ == "__main__":
