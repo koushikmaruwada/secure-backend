@@ -18,8 +18,8 @@ blockchain = Blockchain()
 
 # Dummy database
 DATABASE = {
-    "user1": encrypt_data("Medical Data A"),
-    "user2": encrypt_data("Financial Data B")
+    "patient_101": encrypt_data("Name: John, Disease: Diabetes"),
+    "account_202": encrypt_data("Balance: ₹50,000")
 }
 
 # USERS
