@@ -52,7 +52,7 @@ def parse_multiple_records(text):
 @app.route("/upload", methods=["POST"])
 def upload_file():
     try:
-        DATABASE.clear()  # 🔥 clear old data
+        DATABASE.clear()
 
         if "file" not in request.files:
             return jsonify({"error": "No file uploaded"}), 400
@@ -62,25 +62,14 @@ def upload_file():
 
         data_list = []
 
-        # 📊 EXCEL / CSV
-        if filename.endswith(".xlsx") or filename.endswith(".csv"):
-            df = pd.read_excel(file) if filename.endswith(".xlsx") else pd.read_csv(file)
-            df = df.fillna("")
-
-            for _, row in df.iterrows():
-                record = {}
-                for col in df.columns:
-                    record[col.lower()] = str(row[col]).strip()
-
-                data_list.append(record)
-
         # 📄 TXT
-        elif filename.endswith(".txt"):
+        if filename.endswith(".txt"):
             content = file.read().decode("utf-8")
+
             records = parse_multiple_records(content)
             data_list.extend(records)
 
-        # 📄 WORD (.docx)
+        # 📄 WORD
         elif filename.endswith(".docx"):
             doc = Document(file)
             text = "\n".join([p.text for p in doc.paragraphs])
@@ -101,14 +90,26 @@ def upload_file():
             records = parse_multiple_records(full_text)
             data_list.extend(records)
 
+        # 📊 EXCEL / CSV
+        elif filename.endswith(".xlsx") or filename.endswith(".csv"):
+            df = pd.read_excel(file) if filename.endswith(".xlsx") else pd.read_csv(file)
+            df = df.fillna("")
+
+            for _, row in df.iterrows():
+                record = {}
+                for col in df.columns:
+                    record[col.lower()] = str(row[col]).strip()
+
+                data_list.append(record)
+
         else:
             return jsonify({"error": "Unsupported file type"}), 400
 
-        # 🔐 Encrypt & store
+        # 🔐 STORE
         for i, record in enumerate(data_list):
             DATABASE[f"row_{i}"] = encrypt_data(str(record))
 
-        print("DATABASE SIZE:", len(DATABASE))  # debug
+        print("UPLOAD SUCCESS, RECORDS:", len(data_list))
 
         return jsonify({
             "status": "Upload success",
@@ -116,7 +117,7 @@ def upload_file():
         })
 
     except Exception as e:
-        print("UPLOAD ERROR:", str(e))   # 🔥 already there
+        print("UPLOAD ERROR:", str(e))
         return jsonify({"error": str(e)}), 500
 
 
