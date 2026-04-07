@@ -35,40 +35,28 @@ def upload_file():
     if file.filename.endswith(".xlsx") or file.filename.endswith(".csv"):
         df = pd.read_excel(file) if file.filename.endswith(".xlsx") else pd.read_csv(file)
 
-        for index, row in df.iterrows():
-            key = str(row[0])
-            value = " | ".join([str(v) for v in row[1:]])
+    df = df.fillna("")
 
-            data_dict[key] = encrypt_data(value)
+    for index, row in df.iterrows():
+        # 🔥 combine ALL columns
+        combined_data = " | ".join([str(v).strip() for v in row.values])
 
-    # TXT
-    elif file.filename.endswith(".txt"):
-        lines = file.read().decode("utf-8").split("\n")
+        # use index as key (unique)
+        key = f"row_{index}"
 
-        for line in lines:
-            parts = line.split(",")
-            if len(parts) >= 2:
-                key = parts[0]
-                value = ",".join(parts[1:])
-                data_dict[key] = encrypt_data(value)
-
-    DATABASE.update(data_dict)
-
-    return jsonify({"status": "File uploaded & encrypted"})
+        DATABASE[key] = encrypt_data(combined_data)
 
 # ------------------ QUERY ------------------
 @app.route("/query", methods=["POST"])
 def query():
     data = request.json
-    query_text = data.get("query").lower()
+    query_text = data.get("query").lower().strip()
 
     results = []
 
-    # 🔍 Search inside encrypted data
     for key, encrypted_data in DATABASE.items():
         decrypted_data = decrypt_data(encrypted_data)
 
-        # Match query with content
         if query_text in decrypted_data.lower():
             results.append(decrypted_data)
 
